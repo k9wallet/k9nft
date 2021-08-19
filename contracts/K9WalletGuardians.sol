@@ -20,6 +20,9 @@ contract K9WalletGuardians is Ownable, ERC721Enumerable, ReentrancyGuard {
         _k9WalletToken = _token;
         // Set initial Rate to 200,000 K9WT
         _K9WTRate = 200000;
+
+        // mint the first 10 to developer
+        _mint(10, _dev);
     }
 
     uint256 public constant MINT_LIMIT = 50;
@@ -48,16 +51,12 @@ contract K9WalletGuardians is Ownable, ERC721Enumerable, ReentrancyGuard {
             totalSupply + _numToMint <= numMaxGuardians(),
             "There aren't this many tokens left."
         );
-        uint256 costForMintingTokens = getETHPriceForTokens(_numToMint);
+        uint256 nftCost = getETHPriceForTokens(_numToMint);
         require(
-            msg.value >= costForMintingTokens,
+            msg.value >= nftCost,
             "Too little sent, please send more eth."
         );
-        if (msg.value > costForMintingTokens) {
-            payable(msg.sender).transfer(msg.value - costForMintingTokens);
-        }
-
-        _mint(_numToMint);
+        _mint(_numToMint, msg.sender);
     }
 
     function buyWithK9WT(uint256 _numToMint) public nonReentrant {
@@ -82,12 +81,7 @@ contract K9WalletGuardians is Ownable, ERC721Enumerable, ReentrancyGuard {
             costForMintingTokens
         );
 
-        _mint(_numToMint);
-    }
-
-    function approveK9WTForPurchasing(uint256 _numToPurchase) external {
-        uint256 costForMintingTokens = getK9WTPriceForTokens(_numToPurchase);
-        _k9WalletToken.approve(address(this), costForMintingTokens);
+        _mint(_numToMint, msg.sender);
     }
 
     function K9WTApprovalAmount(address buyer) external view returns (uint256) {
@@ -95,13 +89,13 @@ contract K9WalletGuardians is Ownable, ERC721Enumerable, ReentrancyGuard {
     }
 
     // internal minting function
-    function _mint(uint256 _numToMint) internal {
+    function _mint(uint256 _numToMint, address reciever) internal {
         require(_numToMint <= MINT_LIMIT, "Minting Limit Reached");
 
         uint256 updatedNumAvailableTokens = _numAvailableTokens;
         for (uint256 i = 0; i < _numToMint; i++) {
             uint256 newTokenId = _tokenIdTracker.current();
-            _safeMint(msg.sender, newTokenId);
+            _safeMint(reciever, newTokenId);
             _tokenIdTracker.increment();
             updatedNumAvailableTokens--;
         }
@@ -154,12 +148,17 @@ contract K9WalletGuardians is Ownable, ERC721Enumerable, ReentrancyGuard {
         return _baseTokenURI;
     }
 
+    function mintToDeveloper(uint256 _numToMint) external {
+        _mint(_numToMint, _developer);
+    }
+
     function setBaseURI(string memory baseURI) external onlyOwner {
         _baseTokenURI = baseURI;
     }
 
     function setDarkThemeURI(string memory darkURI) external onlyOwner {
         _darkThemeURI = darkURI;
+        limitedDarkThemeTokensEnabled = true;
     }
 
     function tokenURI(uint256 _tokenId)
@@ -196,6 +195,10 @@ contract K9WalletGuardians is Ownable, ERC721Enumerable, ReentrancyGuard {
 
     function endSale() public onlyOwner {
         isSaleOn = false;
+    }
+
+    function isSaleOpen() public view returns (bool) {
+       return isSaleOn;
     }
 
     // Given the fluctuating price of K9WT, the rate may need to be updated
